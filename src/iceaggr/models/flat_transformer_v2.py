@@ -190,6 +190,16 @@ class FlatTransformerV2(nn.Module):
                 kappa_max=config.get('vmf_kappa_max', 500.0),
                 kappa_reg=config.get('vmf_kappa_reg', 1e-4),
             )
+        elif self.head_type == 'classification':
+            self.direction_head = None
+            self.vmf_head = None
+            self.vmf_loss = None
+            self.num_classes = config.get('num_classes', 3)
+            self.class_head = nn.Sequential(
+                nn.Linear(self.d_model, config.get('head_hidden_dim', 128)),
+                nn.GELU(),
+                nn.Linear(config.get('head_hidden_dim', 128), self.num_classes),
+            )
         else:
             raise ValueError(f"Unsupported head_type: {self.head_type}")
 
@@ -279,6 +289,10 @@ class FlatTransformerV2(nn.Module):
         if self.head_type == 'directional':
             direction = self.direction_head(embedding)
             return {'direction': direction, 'embedding': embedding}
+
+        if self.head_type == 'classification':
+            logits = self.class_head(embedding)
+            return {'logits': logits, 'embedding': embedding}
 
         # vMF mixture head path
         mu, raw_kappa, log_weights = self.vmf_head(embedding)

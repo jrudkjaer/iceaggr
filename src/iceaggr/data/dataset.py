@@ -53,6 +53,7 @@ class IceCubeDataset(Dataset):
         cache_size: int = 1,
         batch_range: Optional[tuple] = None,
         min_pulses: Optional[int] = None,
+        head_type: str = 'directional',
     ):
         assert split in ["train", "test"], f"split must be 'train' or 'test', got {split}"
 
@@ -101,9 +102,24 @@ class IceCubeDataset(Dataset):
         self.first_pulse_idx = self.metadata.column("first_pulse_index").to_numpy()
         self.last_pulse_idx = self.metadata.column("last_pulse_index").to_numpy()
 
-        if split == "train":
+        self.head_type = head_type 
+
+        # if split == "train":
+        #     if self.head_type == "classification":
+        #         self.pid_class = self.metadata.column("pid_class").to_numpy() 
+        #     else:
+        #         self.azimuth = self.metadata.column("azimuth").to_numpy()
+        #         self.zenith = self.metadata.column("zenith").to_numpy()
+
+        if self.head_type == "classification":
+            self.pid_class = self.metadata.column("pid_class").to_numpy()
+        elif split == "train":
             self.azimuth = self.metadata.column("azimuth").to_numpy()
             self.zenith = self.metadata.column("zenith").to_numpy()
+
+        # if split == "train":                                                          # Had been commented out and the above has been put in for PID to be possible
+        #     self.azimuth = self.metadata.column("azimuth").to_numpy()
+        #     self.zenith = self.metadata.column("zenith").to_numpy()
 
         # Simple LRU cache for batch files
         self.cache_size = cache_size
@@ -168,7 +184,16 @@ class IceCubeDataset(Dataset):
         }
 
         # Add targets for training split
-        if self.split == "train":
+        # if self.split == "train":
+        #     if self.head_type == "classification":
+        #         result["target"] = torch.tensor(self.pid_class[idx], dtype=torch.int64)
+        #     else:
+        #         target = np.array([self.azimuth[idx], self.zenith[idx]], dtype=np.float32)
+        #         result["target"] = torch.from_numpy(target)
+
+        if self.head_type == "classification":
+            result["target"] = torch.tensor(self.pid_class[idx], dtype=torch.int64)
+        elif self.split == "train":
             target = np.array([self.azimuth[idx], self.zenith[idx]], dtype=np.float32)
             result["target"] = torch.from_numpy(target)
 
@@ -207,6 +232,7 @@ class IceCubeSubsampledDataset(Dataset):
         max_seq_len: int = 512,
         max_events: Optional[int] = None,
         cache_size: int = 1,
+        head_type: str = 'directional',
     ):
         assert split in ["train", "test"], f"split must be 'train' or 'test', got {split}"
 
@@ -232,9 +258,24 @@ class IceCubeSubsampledDataset(Dataset):
         self.bucket_ids = self.metadata.column("bucket_id").to_numpy()
         self.pulse_counts = self.metadata.column("pulse_count").to_numpy()
 
-        if split == "train":
+        self.head_type = head_type 
+
+        # if split == "train":
+        #     if self.head_type == "classification":
+        #         self.pid_class = self.metadata.column("pid_class").to_numpy() 
+        #     else:
+        #         self.azimuth = self.metadata.column("azimuth").to_numpy()
+        #         self.zenith = self.metadata.column("zenith").to_numpy()
+        
+        if self.head_type == "classification":
+            self.pid_class = self.metadata.column("pid_class").to_numpy()
+        elif split == "train":
             self.azimuth = self.metadata.column("azimuth").to_numpy()
             self.zenith = self.metadata.column("zenith").to_numpy()
+
+        # if split == "train":                                                          # Had been commented out and the above has been put in for PID to be possible
+        #     self.azimuth = self.metadata.column("azimuth").to_numpy()
+        #     self.zenith = self.metadata.column("zenith").to_numpy()
 
         # Simple LRU cache for batch files
         self.cache_size = cache_size
@@ -312,7 +353,16 @@ class IceCubeSubsampledDataset(Dataset):
         }
 
         # Add targets for training split
-        if self.split == "train":
+        # if self.split == "train":
+        #     if self.head_type == "classification":
+        #         result["target"] = torch.tensor(self.pid_class[idx], dtype=torch.int64)
+        #     else:
+        #         target = np.array([self.azimuth[idx], self.zenith[idx]], dtype=np.float32)
+        #         result["target"] = torch.from_numpy(target)
+
+        if self.head_type == "classification":
+            result["target"] = torch.tensor(self.pid_class[idx], dtype=torch.int64)
+        elif self.split == "train":
             target = np.array([self.azimuth[idx], self.zenith[idx]], dtype=np.float32)
             result["target"] = torch.from_numpy(target)
 

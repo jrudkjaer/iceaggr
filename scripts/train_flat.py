@@ -114,6 +114,7 @@ def create_model(config: dict, device: str) -> nn.Module:
         model_config['input_mode'] = config['model'].get('input_mode', 'mlp')
         for key in (
             'head_type',
+            'num_classes',
             'vmf_components',
             'vmf_kappa_min',
             'vmf_kappa_max',
@@ -193,6 +194,7 @@ def create_dataloader(
         cache_size=1,
         batch_range=batch_range,
         min_pulses=config['data'].get('min_pulses'),
+        head_type=config['model'].get('head_type', 'directional'),
     )
 
     sampler = BatchAwareSampler(dataset.metadata)
@@ -260,7 +262,10 @@ def train_epoch(
                 target_unit = angles_to_unit_vector(targets[:, 0], targets[:, 1])
                 outputs = model(dom_vectors, padding_mask, target=target_unit)
                 loss = outputs['loss']
-            else:
+            elif head_type == 'classification':
+                outputs = model(dom_vectors, padding_mask)
+                loss = nn.CrossEntropyLoss()(outputs['logits'], targets.long())
+            else: 
                 outputs = model(dom_vectors, padding_mask)
                 y_pred = outputs['direction'] if isinstance(outputs, dict) else outputs
                 loss = angular_distance_loss(y_pred, targets)
@@ -286,7 +291,7 @@ def train_epoch(
                 "train/loss": loss.item(),
                 "train/lr": current_lr,
             }
-            if head_type != 'vmf':
+            if head_type == 'directional':
                 log_payload["train/loss_deg"] = torch.rad2deg(torch.tensor(loss.item())).item()
             wandb_run.log(log_payload, step=step)
 
@@ -297,6 +302,8 @@ def train_epoch(
             speed = n_trained / elapsed
             if head_type == 'vmf':
                 loss_str = f"NLL: {avg_loss:.4f}"
+            elif head_type == 'classification':
+                loss_str = f"CE: {avg_loss:.4f}"
             else:
                 loss_str = f"Loss: {avg_loss:.4f} ({torch.rad2deg(torch.tensor(avg_loss)):.1f} deg)"
             logger.info(
@@ -309,20 +316,22 @@ def train_epoch(
             val_metrics = validate(model, val_loader, device, config)
             val_loss = val_metrics['loss']
             val_ang_err = val_metrics['angular_error_rad']
-            val_ang_deg = torch.rad2deg(torch.tensor(val_ang_err)).item()
+            if head_type == 'classification':
+                metric_str = f"Val acc: {val_ang_err*100:.2f}%"
+                wandb_metrics = {"val/loss": val_loss, "val/accuracy": val_ang_err}
+            else:
+                val_ang_deg = torch.rad2deg(torch.tensor(val_ang_err)).item()
+                metric_str = f"Angular err: {val_ang_deg:.2f} deg"
+                wandb_metrics = {"val/loss": val_loss, "val/angular_error_rad": val_ang_err, "val/angular_error_deg": val_ang_deg}
             logger.info(
                 f"Epoch {epoch:3d} | Mid-epoch val @ batch {actual_batch+1}/{n_batches} | "
-                f"Val loss: {val_loss:.4f} | Angular err: {val_ang_deg:.2f} deg"
+                f"Val loss: {val_loss:.4f} |{metric_str}"
             )
 
             # Log to wandb
             if wandb_run is not None:
                 step = (epoch - 1) * n_batches + actual_batch
-                wandb_run.log({
-                    "val/loss": val_loss,
-                    "val/angular_error_rad": val_ang_err,
-                    "val/angular_error_deg": val_ang_deg,
-                }, step=step)
+                wandb_run.log(wandb_metrics, step=step)
 
             # Save best model checkpoint (by training-objective loss)
             if val_loss < best_loss and checkpoint_dir is not None:
@@ -340,7 +349,7 @@ def train_epoch(
                     'best_loss': best_loss,
                     'config': config,
                 }, checkpoint_path)
-                logger.info(f"Saved best model (val angular err: {val_ang_deg:.2f} deg)")
+                logger.info(f"Saved best model ({metric_str})")
 
             # Switch back to training mode
             model.train()
@@ -374,6 +383,11 @@ def validate(model: nn.Module, loader: DataLoader, device: str, config: dict) ->
                     outputs = model(dom_vectors, padding_mask, target=target_unit)
                     loss = outputs['loss']
                     ang_err = angular_distance_loss(outputs['direction'], targets)
+                elif head_type == 'classification':
+                    outputs = model(dom_vectors, padding_mask)
+                    loss = nn.CrossEntropyLoss()(outputs['logits'], targets.long())
+                    acc = (outputs['logits'].argmax(dim=1) == targets.long()).float().mean()
+                    ang_err = acc                                                                        # Just for logging; not a true angular error but instead accuracy
                 else:
                     outputs = model(dom_vectors, padding_mask)
                     y_pred = outputs['direction'] if isinstance(outputs, dict) else outputs
@@ -437,6 +451,8 @@ def main():
     model = torch.compile(model)
     logger.info("Model compiled with torch.compile")
 
+    head_type = config['model'].get('head_type', 'directional')
+
     # Create dataloaders
     train_batch_range = None
     val_batch_range = None
@@ -453,7 +469,8 @@ def main():
     if val_batch_range is not None:
         val_loader, _ = create_dataloader(
             config, geometry,
-            batch_range=val_batch_range,
+            # batch_range=val_batch_range,
+            split = 'test',
             max_events=config['data'].get('val_events'),
             num_workers=2,
         )
@@ -557,19 +574,20 @@ def main():
         current_lr = scheduler.get_last_lr()[0]
 
         # Log epoch summary
-        train_deg = torch.rad2deg(torch.tensor(train_loss)).item()
-        val_ang_deg = torch.rad2deg(torch.tensor(val_ang_err)).item()
-
-        logger.info(
-            f"Epoch {epoch:3d} done | "
-            f"Train: {train_loss:.4f} | "
-            f"Val loss: {val_loss:.4f} | Angular err: {val_ang_deg:.2f} deg | "
-            f"LR: {current_lr:.2e}"
-        )
-
-        # Log to wandb
-        if wandb_run is not None:
-            wandb_run.log({
+        if head_type == 'classification':
+            metric_str = f"Val acc: {val_ang_err*100:.2f}%"
+            wandb_metrics = {
+                "epoch": epoch,
+                "train/epoch_loss": train_loss,
+                "val/loss": val_loss,
+                "val/accuracy": val_ang_err,
+                "lr": current_lr,
+            }
+        else:
+            train_deg = torch.rad2deg(torch.tensor(train_loss)).item()
+            val_ang_deg = torch.rad2deg(torch.tensor(val_ang_err)).item()
+            metric_str = f"Angular err: {val_ang_deg:.2f} deg"
+            wandb_metrics = {
                 "epoch": epoch,
                 "train/epoch_loss": train_loss,
                 "train/epoch_loss_deg": train_deg,
@@ -577,15 +595,25 @@ def main():
                 "val/angular_error_rad": val_ang_err,
                 "val/angular_error_deg": val_ang_deg,
                 "lr": current_lr,
-            })
+            }
 
-        # Save checkpoint if best
-        if val_loss < best_loss:
+        logger.info(
+            f"Epoch {epoch:3d} done | "
+            f"Train: {train_loss:.4f} | "
+            f"Val loss: {val_loss:.4f} | {metric_str} | "
+            f"LR: {current_lr:.2e}"
+        )
+
+        # Log to wandb
+        if wandb_run is not None:
+            wandb_run.log(wandb_metrics)
+
+        # Save best model checkpoint
+        if val_loss < best_loss and checkpoint_dir is not None:
             best_loss = val_loss
             checkpoint_path = run_checkpoint_dir / "best.pt"
             torch.save({
                 'epoch': epoch,
-                'batch_idx': None,
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'scheduler': scheduler.state_dict(),
@@ -595,7 +623,7 @@ def main():
                 'best_loss': best_loss,
                 'config': config,
             }, checkpoint_path)
-            logger.info(f"Saved best model (val angular err: {val_ang_deg:.2f} deg)")
+            logger.info(f"Saved best model ({metric_str})")
 
         # Save periodic checkpoint
         save_every = config['checkpoint'].get('save_every', 5)
@@ -614,9 +642,11 @@ def main():
                 'config': config,
             }, latest_path)
 
-    head_type = config['model'].get('head_type', 'directional')
+
     if head_type == 'vmf':
         logger.info(f"Training complete. Best val loss (NLL): {best_loss:.4f}")
+    elif head_type == 'classification':
+        logger.info(f"Training complete. Best val loss (CE): {best_loss:.4f}")
     else:
         logger.info(f"Training complete. Best val loss: {torch.rad2deg(torch.tensor(best_loss)):.1f} deg")
 
