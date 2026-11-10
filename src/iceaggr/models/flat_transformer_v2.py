@@ -43,6 +43,7 @@ from typing import Any, Dict, Optional
 import math
 
 from .directional_head import DirectionalHead
+from .pid_head import PIDHead
 from .vmf_loss import VMFMixtureHead, VMFMixtureLoss, kappa_bias_for_target, vmf_weighted_mean
 
 
@@ -436,6 +437,15 @@ class FlatTransformerV2(nn.Module):
             )
             self.vmf_head = None
             self.vmf_loss = None
+        elif self.head_type == 'pid':
+            self.direction_head = None
+            self.vmf_head = None
+            self.vmf_loss = None
+            self.pid_head = PIDHead(
+                embed_dim=self.d_model,
+                hidden_dim=config.get('head_hidden_dim', 128),
+                num_classes=config.get('num_classes', 3),
+            )
         elif self.head_type == 'vmf':
             self.direction_head = None
             self.vmf_head = VMFMixtureHead(
@@ -586,6 +596,11 @@ class FlatTransformerV2(nn.Module):
         if self.head_type == 'directional':
             direction = self.direction_head(embedding)
             return {'direction': direction, 'embedding': embedding}
+        
+        if self.head_type == 'pid':
+            logits = self.pid_head(embedding)
+            return {'logits': logits, 'embedding': embedding}
+        
 
         # vMF mixture head path
         mu, raw_kappa, log_weights = self.vmf_head(embedding)

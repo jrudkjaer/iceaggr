@@ -9,6 +9,7 @@ from .losses import (
 )
 from .event_transformer import EventTransformer, TransformerBlock
 from .directional_head import DirectionalHead
+from .pid_head import PIDHead
 from .flat_transformer import (
     FlatTransformerModel,
     build_flat_dom_vectors,
@@ -28,6 +29,8 @@ __all__ = [
     "TransformerBlock",
     # Direction prediction
     "DirectionalHead",
+    # PID classification
+    "PIDHead",
     # Full model (flat/simplified)
     "FlatTransformerModel",
     "build_flat_dom_vectors",
