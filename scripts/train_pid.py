@@ -6,6 +6,7 @@ Built from the pieces of train_flat.py, but with a classification loss
 (cross-entropy) instead of the angular loss. There are no angles in this file.
 """
 
+import argparse 
 import math
 import time
 from pathlib import Path
@@ -16,8 +17,9 @@ import torch.nn.functional as F
 import yaml
 from torch.utils.data import DataLoader
 
-from iceaggr.data import make_collate_flat
+from iceaggr.data import GeometryLoader, make_collate_flat
 from iceaggr.models import FlatTransformerV2
+from iceaggr.models.pid_metrics import CLASS_NAMES, confusion_matrix, metrics_from_confusion, plot_confusion_matrix
 from iceaggr.utils import get_logger
 
 logger = get_logger(__name__)
@@ -149,3 +151,136 @@ def train_epoch(model, loader, optimizer, scheduler, device, epoch, config):
             )
 
     return loss_sum.item() / max(n_trained, 1), correct.item() / max(n_events, 1)
+
+@torch.no_grad()
+def validate(model, loader, device, config):
+    """Score the model on held-out events (no learning). Returns a dict of metrics."""
+    model.eval()
+
+    num_classes = int(config['model'].get('num_classes', 3))
+    device_type = 'cuda' if 'cuda' in str(device) else 'cpu'
+    use_amp = bool(config['training'].get('use_amp', False)) and device_type == 'cuda'
+
+    loss_sum = torch.zeros((), device=device)
+    cm = torch.zeros(num_classes, num_classes, dtype=torch.long, device=device)
+    n_batches = 0
+
+    for batch in loader:
+        dom_vectors = batch['dom_vectors'].to(device, non_blocking=True)
+        padding_mask = batch['padding_mask'].to(device, non_blocking=True)
+        targets = batch['targets'].to(device, non_blocking=True)
+
+        with torch.autocast(device_type=device_type, dtype=torch.bfloat16, enabled=use_amp):
+            logits = model(dom_vectors, padding_mask)['logits']
+
+        loss_sum += F.cross_entropy(logits.float(), targets)
+        cm += confusion_matrix(logits, targets, num_classes)
+        n_batches += 1
+
+    cm = cm.cpu()
+    out = metrics_from_confusion(cm)
+    out["loss"] = loss_sum.item() / max(n_batches, 1)
+    out["confusion_matrix"] = cm      # rows = true class, columns = predicted class
+    return out
+
+
+def format_metrics(m: dict) -> str:
+    """One readable line: loss, accuracy and accuracy per class."""
+    per_class = m["per_class_accuracy"]
+    names = CLASS_NAMES if len(per_class) == len(CLASS_NAMES) else [str(i) for i in range(len(per_class))]
+    per = ", ".join(f"{n} {a:.3f}" for n, a in zip(names, per_class))
+    return f"loss {m['loss']:.4f} | acc {m['accuracy']:.3f} | per class: {per}"
+
+def build_datasets(config: dict):
+    """Return (train_dataset, val_dataset). The real dataset will be plugged in here."""
+    source = config['data'].get('source', 'fake')
+    if source == 'fake':
+        from fake_pid_data import FakePIDDataset
+        seed = int(config['training'].get('seed', 0))
+        train_ds = FakePIDDataset(n_events=int(config['data'].get('train_events', 2048)), seed=seed)
+        val_ds = FakePIDDataset(n_events=int(config['data'].get('val_events', 512)), seed=seed + 1)
+        return train_ds, val_ds
+    raise NotImplementedError(
+        f"data.source = '{source}': the real dataset is not written yet. Use 'fake' for now."
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Train the PID transformer")
+    parser.add_argument("--config", required=True, help="Path to YAML config")
+    args = parser.parse_args()
+
+    config = load_config(args.config)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    torch.manual_seed(int(config['training'].get('seed', 0)))
+    logger.info(f"Device: {device}")
+
+    # --- data ---
+    geometry_path = config['data']['geometry_path']
+    if config['data'].get('source', 'fake') == 'fake' and not Path(geometry_path).exists():
+        from fake_pid_data import write_fake_geometry
+        write_fake_geometry(geometry_path)
+    geometry = GeometryLoader(geometry_path)
+
+    train_ds, val_ds = build_datasets(config)
+    train_loader = create_dataloader(train_ds, geometry, config, shuffle=True)
+    val_loader = create_dataloader(val_ds, geometry, config, shuffle=False)
+    logger.info(f"Train: {len(train_ds):,} events, {len(train_loader):,} batches | Val: {len(val_ds):,} events")
+
+    # --- model, optimizer, learning-rate schedule ---
+    model = create_model(config, device)
+    epochs = int(config['training']['epochs'])
+    total_steps = len(train_loader) * epochs
+    warmup_steps = int(config['training'].get('warmup_steps', 1000))
+    pct_start = min(warmup_steps / total_steps, 0.3)
+    optimizer, scheduler = build_optimizer_and_scheduler(model, config, total_steps, pct_start)
+
+    # --- where to save ---
+    run_name = config.get('run_name') or "pid-" + time.strftime("%m%d-%H%M")
+    run_dir = Path(config['checkpoint']['dir']) / run_name
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with open(run_dir / "config.yaml", "w") as f:
+        yaml.safe_dump(config, f)
+    save_every = int(config['checkpoint'].get('save_every', 5))
+    logger.info(f"Saving to {run_dir}")
+
+    # --- epoch loop ---
+    best_loss = float('inf')
+    for epoch in range(1, epochs + 1):
+        train_loss, train_acc = train_epoch(model, train_loader, optimizer, scheduler, device, epoch, config)
+        val = validate(model, val_loader, device, config)
+        lr = scheduler.get_last_lr()[0]
+        logger.info(
+            f"Epoch {epoch:3d} done | train loss {train_loss:.4f}, acc {train_acc:.3f} | "
+            f"val {format_metrics(val)} | LR {lr:.2e}"
+        )
+
+        checkpoint = {
+            "epoch": epoch,
+            "model": model.state_dict(),
+            "config": config,
+            "val_loss": val["loss"],
+            "val_accuracy": val["accuracy"],
+        }
+        if val["loss"] < best_loss:
+            best_loss = val["loss"]
+            torch.save(checkpoint, run_dir / "best.pt")
+            logger.info(f"  new best (val loss {best_loss:.4f}) -> best.pt")
+        if save_every > 0 and epoch % save_every == 0:
+            torch.save(checkpoint, run_dir / f"epoch_{epoch:03d}.pt")
+
+    # --- after training: score the best model and save the confusion matrix ---
+    best = torch.load(run_dir / "best.pt", map_location=device, weights_only=False)
+    model.load_state_dict(best["model"])
+    final = validate(model, val_loader, device, config)
+    logger.info(f"Best model (epoch {best['epoch']}): {format_metrics(final)}")
+    logger.info(f"Confusion matrix (rows = true, columns = predicted):\n{final['confusion_matrix']}")
+
+    n_classes = final["confusion_matrix"].shape[0]
+    names = CLASS_NAMES if n_classes == len(CLASS_NAMES) else [str(i) for i in range(n_classes)]
+    plot_confusion_matrix(final["confusion_matrix"], names, path=str(run_dir / "confusion_matrix.png"))
+    logger.info(f"Done. Results in {run_dir}")
+
+
+if __name__ == "__main__":
+    main()

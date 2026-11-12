@@ -1,0 +1,35 @@
+run_name: pid-fake-test
+
+model:
+  max_pulses_per_dom: 41
+  d_model: 256
+  max_doms: 128
+  num_heads: 8
+  num_layers: 2
+  hidden_dim: 512
+  head_hidden_dim: 128
+  dropout: 0.0
+  input_mode: none
+  num_classes: 3
+
+training:
+  epochs: 10
+  batch_size: 64
+  lr: 1.0e-3
+  warmup_steps: 20
+  weight_decay: 0.01
+  gradient_clip: 1.0
+  use_amp: false
+  log_every: 16
+  seed: 0
+
+data:
+  source: fake
+  train_events: 2048
+  val_events: 512
+  geometry_path: /tmp/fake_geometry.csv
+  num_workers: 0
+
+checkpoint:
+  dir: checkpoints
+  save_every: 5

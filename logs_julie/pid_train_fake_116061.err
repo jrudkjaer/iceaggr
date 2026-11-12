@@ -1,0 +1,50 @@
+2026-11-12 10:59:58,832 | [32mINFO[0m | Device: cpu
+2026-11-12 10:59:59,266 | [32mINFO[0m | Train: 2,048 events, 32 batches | Val: 512 events
+2026-11-12 10:59:59,319 | [32mINFO[0m | PID model: 1,082,119 parameters, 3 classes
+2026-11-12 11:00:14,846 | [32mINFO[0m | Saving to checkpoints/pid-fake-test
+2026-11-12 11:00:20,736 | [32mINFO[0m | Epoch   1 | batch 16/32 | loss 0.8800 | acc 0.590 | 6s
+2026-11-12 11:00:26,125 | [32mINFO[0m | Epoch   1 | batch 32/32 | loss 0.6372 | acc 0.732 | 11s
+2026-11-12 11:00:27,004 | [32mINFO[0m | Epoch   1 done | train loss 0.6372, acc 0.732 | val loss 0.0024 | acc 1.000 | per class: noise 1.000, muon 1.000, neutrino 1.000 | LR 9.95e-04
+2026-11-12 11:00:27,098 | [32mINFO[0m |   new best (val loss 0.0024) -> best.pt
+2026-11-12 11:00:32,441 | [32mINFO[0m | Epoch   2 | batch 16/32 | loss 0.0006 | acc 1.000 | 5s
+2026-11-12 11:00:37,746 | [32mINFO[0m | Epoch   2 | batch 32/32 | loss 0.0003 | acc 1.000 | 11s
+2026-11-12 11:00:38,600 | [32mINFO[0m | Epoch   2 done | train loss 0.0003, acc 1.000 | val loss 0.0001 | acc 1.000 | per class: noise 1.000, muon 1.000, neutrino 1.000 | LR 9.46e-04
+2026-11-12 11:00:38,609 | [32mINFO[0m |   new best (val loss 0.0001) -> best.pt
+2026-11-12 11:00:43,923 | [32mINFO[0m | Epoch   3 | batch 16/32 | loss 0.0000 | acc 1.000 | 5s
+2026-11-12 11:00:49,237 | [32mINFO[0m | Epoch   3 | batch 32/32 | loss 0.0000 | acc 1.000 | 11s
+2026-11-12 11:00:50,106 | [32mINFO[0m | Epoch   3 done | train loss 0.0000, acc 1.000 | val loss 0.0000 | acc 1.000 | per class: noise 1.000, muon 1.000, neutrino 1.000 | LR 8.46e-04
+2026-11-12 11:00:50,115 | [32mINFO[0m |   new best (val loss 0.0000) -> best.pt
+2026-11-12 11:00:55,417 | [32mINFO[0m | Epoch   4 | batch 16/32 | loss 0.0000 | acc 1.000 | 5s
+2026-11-12 11:01:00,726 | [32mINFO[0m | Epoch   4 | batch 32/32 | loss 0.0000 | acc 1.000 | 11s
+2026-11-12 11:01:01,569 | [32mINFO[0m | Epoch   4 done | train loss 0.0000, acc 1.000 | val loss 0.0000 | acc 1.000 | per class: noise 1.000, muon 1.000, neutrino 1.000 | LR 7.08e-04
+2026-11-12 11:01:01,578 | [32mINFO[0m |   new best (val loss 0.0000) -> best.pt
+2026-11-12 11:01:06,889 | [32mINFO[0m | Epoch   5 | batch 16/32 | loss 0.0000 | acc 1.000 | 5s
+2026-11-12 11:01:12,190 | [32mINFO[0m | Epoch   5 | batch 32/32 | loss 0.0000 | acc 1.000 | 11s
+2026-11-12 11:01:13,053 | [32mINFO[0m | Epoch   5 done | train loss 0.0000, acc 1.000 | val loss 0.0000 | acc 1.000 | per class: noise 1.000, muon 1.000, neutrino 1.000 | LR 5.47e-04
+2026-11-12 11:01:13,061 | [32mINFO[0m |   new best (val loss 0.0000) -> best.pt
+2026-11-12 11:01:18,374 | [32mINFO[0m | Epoch   6 | batch 16/32 | loss 0.0000 | acc 1.000 | 5s
+2026-11-12 11:01:23,722 | [32mINFO[0m | Epoch   6 | batch 32/32 | loss 0.0000 | acc 1.000 | 11s
+2026-11-12 11:01:24,578 | [32mINFO[0m | Epoch   6 done | train loss 0.0000, acc 1.000 | val loss 0.0000 | acc 1.000 | per class: noise 1.000, muon 1.000, neutrino 1.000 | LR 3.81e-04
+2026-11-12 11:01:24,586 | [32mINFO[0m |   new best (val loss 0.0000) -> best.pt
+2026-11-12 11:01:29,894 | [32mINFO[0m | Epoch   7 | batch 16/32 | loss 0.0000 | acc 1.000 | 5s
+2026-11-12 11:01:35,187 | [32mINFO[0m | Epoch   7 | batch 32/32 | loss 0.0000 | acc 1.000 | 11s
+2026-11-12 11:01:36,047 | [32mINFO[0m | Epoch   7 done | train loss 0.0000, acc 1.000 | val loss 0.0000 | acc 1.000 | per class: noise 1.000, muon 1.000, neutrino 1.000 | LR 2.28e-04
+2026-11-12 11:01:36,055 | [32mINFO[0m |   new best (val loss 0.0000) -> best.pt
+2026-11-12 11:01:41,368 | [32mINFO[0m | Epoch   8 | batch 16/32 | loss 0.0000 | acc 1.000 | 5s
+2026-11-12 11:01:46,674 | [32mINFO[0m | Epoch   8 | batch 32/32 | loss 0.0000 | acc 1.000 | 11s
+2026-11-12 11:01:47,532 | [32mINFO[0m | Epoch   8 done | train loss 0.0000, acc 1.000 | val loss 0.0000 | acc 1.000 | per class: noise 1.000, muon 1.000, neutrino 1.000 | LR 1.05e-04
+2026-11-12 11:01:47,539 | [32mINFO[0m |   new best (val loss 0.0000) -> best.pt
+2026-11-12 11:01:52,862 | [32mINFO[0m | Epoch   9 | batch 16/32 | loss 0.0000 | acc 1.000 | 5s
+2026-11-12 11:01:58,168 | [32mINFO[0m | Epoch   9 | batch 32/32 | loss 0.0000 | acc 1.000 | 11s
+2026-11-12 11:01:59,027 | [32mINFO[0m | Epoch   9 done | train loss 0.0000, acc 1.000 | val loss 0.0000 | acc 1.000 | per class: noise 1.000, muon 1.000, neutrino 1.000 | LR 2.62e-05
+2026-11-12 11:01:59,035 | [32mINFO[0m |   new best (val loss 0.0000) -> best.pt
+2026-11-12 11:02:04,337 | [32mINFO[0m | Epoch  10 | batch 16/32 | loss 0.0000 | acc 1.000 | 5s
+2026-11-12 11:02:09,656 | [32mINFO[0m | Epoch  10 | batch 32/32 | loss 0.0000 | acc 1.000 | 11s
+2026-11-12 11:02:10,506 | [32mINFO[0m | Epoch  10 done | train loss 0.0000, acc 1.000 | val loss 0.0000 | acc 1.000 | per class: noise 1.000, muon 1.000, neutrino 1.000 | LR 6.74e-08
+2026-11-12 11:02:10,514 | [32mINFO[0m |   new best (val loss 0.0000) -> best.pt
+2026-11-12 11:02:11,384 | [32mINFO[0m | Best model (epoch 10): loss 0.0000 | acc 1.000 | per class: noise 1.000, muon 1.000, neutrino 1.000
+2026-11-12 11:02:11,407 | [32mINFO[0m | Confusion matrix (rows = true, columns = predicted):
+tensor([[164,   0,   0],
+        [  0, 167,   0],
+        [  0,   0, 181]])
+2026-11-12 11:02:11,845 | [32mINFO[0m | Done. Results in checkpoints/pid-fake-test

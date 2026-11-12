@@ -1,5 +1,7 @@
 """Classification metrics for PID: confusion matrix, accuracy, per-class accuracy."""
 
+import numpy as np
+import matplotlib.pyplot as plt
 import torch
 
 CLASS_NAMES = ("noise", "muon", "neutrino")   # class 0, 1, 2
@@ -23,3 +25,31 @@ def metrics_from_confusion(cm: torch.Tensor) -> dict:
     accuracy = (cm.diag().sum() / cm.sum().clamp(min=1)).item()
     per_class = (cm.diag() / cm.sum(dim=1).clamp(min=1)).tolist()
     return {"accuracy": accuracy, "per_class_accuracy": per_class}
+
+def plot_confusion_matrix(cm, class_names, normalize=True, path=None):
+    """Heatmap of a confusion matrix (rows = true class, columns = predicted class).
+
+    normalize=True: each row is divided by its total, so a cell shows the fraction
+    of that true class that was predicted as the column's class.
+    """
+    cm = np.asarray(cm, dtype=float)
+    shown = cm / np.clip(cm.sum(axis=1, keepdims=True), 1, None) if normalize else cm
+
+    fig, ax = plt.subplots(figsize=(5, 4.5))
+    im = ax.imshow(shown, cmap="Blues", vmin=0, vmax=1 if normalize else None)
+    ax.set_xticks(range(len(class_names)), labels=class_names)
+    ax.set_yticks(range(len(class_names)), labels=class_names)
+    ax.set_xlabel("predicted class")
+    ax.set_ylabel("true class")
+    fig.colorbar(im, ax=ax)
+
+    for i in range(shown.shape[0]):
+        for j in range(shown.shape[1]):
+            text = f"{shown[i, j]:.2f}" if normalize else f"{int(cm[i, j])}"
+            ax.text(j, i, text, ha="center", va="center",
+                    color="white" if shown[i, j] > 0.5 else "black")
+
+    fig.tight_layout()
+    if path:
+        fig.savefig(path, dpi=150)
+    return fig, ax
