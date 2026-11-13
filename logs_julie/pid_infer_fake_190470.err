@@ -1,0 +1,10 @@
+2026-11-13 10:01:28,089 | [32mINFO[0m | Checkpoint checkpoints/pid-fake-test/best.pt (epoch 10, val acc 1.000)
+2026-11-13 10:01:28,549 | [32mINFO[0m | PID model: 1,082,119 parameters, 3 classes
+2026-11-13 10:01:28,704 | [32mINFO[0m | Running on the 'val' dataset: 512 events
+2026-11-13 10:01:33,030 | [32mINFO[0m | Wrote 512 events to predictions/pid_predictions_190470.parquet
+2026-11-13 10:01:33,037 | [32mINFO[0m | Accuracy 1.000 | per class: noise 1.000, muon 1.000, neutrino 1.000
+2026-11-13 10:01:33,053 | [32mINFO[0m | Confusion matrix (rows = true, columns = predicted):
+tensor([[164,   0,   0],
+        [  0, 167,   0],
+        [  0,   0, 181]])
+2026-11-13 10:01:33,517 | [32mINFO[0m | Saved predictions/pid_predictions_190470_confusion_matrix.png
