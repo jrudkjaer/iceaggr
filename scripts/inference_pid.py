@@ -6,7 +6,7 @@ Example:
     python scripts/inference_pid.py --checkpoint checkpoints/<run>/best.pt \
         --output predictions/pid_predictions.parquet
 
-Output columns: event_no, pid_<class>_pred (one per class), pred_class and, when the
+Output columns: event_id, pid_<class>_pred (one per class), pred_class and, when the
 dataset has labels, true_class. With labels it also prints the accuracy and saves a
 confusion-matrix plot next to the output file.
 """
@@ -40,7 +40,7 @@ def class_names(num_classes: int) -> list:
 
 def predictions_table(event_ids, probs, true_classes, names) -> pd.DataFrame:
     """Build the output table from numpy arrays."""
-    table = {"event_no": event_ids}
+    table = {"event_id": event_ids}
     for i, name in enumerate(names):
         table[f"pid_{name}_pred"] = probs[:, i]
     table["pred_class"] = probs.argmax(axis=1)
@@ -77,7 +77,7 @@ def main():
     parser = argparse.ArgumentParser(description="PID inference")
     parser.add_argument("--checkpoint", required=True, help="Path to best.pt")
     parser.add_argument("--output", default="predictions/pid_predictions.parquet")
-    parser.add_argument("--split", choices=["train", "val"], default="val",
+    parser.add_argument("--split", choices=["train", "val", "test"], default="val",
                         help="Which dataset from build_datasets to run on")
     parser.add_argument("--geometry", default=None, help="Override the geometry CSV path")
     parser.add_argument("--batch-size", type=int, default=None)
@@ -106,8 +106,12 @@ def main():
         write_fake_geometry(geometry_path)
     geometry = GeometryLoader(geometry_path)
 
-    train_ds, val_ds = build_datasets(config)
-    dataset = train_ds if args.split == "train" else val_ds
+    if args.split == "test":
+        from iceaggr.data.prepared_pid_dataset import PreparedPIDDataset
+        dataset = PreparedPIDDataset(config["data"]["prepared_dir"], "test", num_classes=num_classes)
+    else:
+        train_ds, val_ds = build_datasets(config)
+        dataset = train_ds if args.split == "train" else val_ds
     loader = create_dataloader(dataset, geometry, config, shuffle=False)
     logger.info(f"Running on the '{args.split}' dataset: {len(dataset):,} events")
 
