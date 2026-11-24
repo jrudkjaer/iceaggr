@@ -42,21 +42,38 @@ def mc_class_from_pid(pid) -> np.ndarray:
     out[np.abs(pid) == 16] = "nutau"
     return out
 
+def mc_class_from_label(label) -> np.ndarray:
+    """Map the 5-class `label` of the prepared meta files (0 noise, 1 muon, 2 nue, 3 numu, 4 nutau) to names."""
+    return np.asarray(MC_CLASSES, dtype=object)[np.asarray(label).astype(int)]
 
-def rescale_weights_by_class(weights, classes, n_full: dict) -> np.ndarray:
-    """Weights for a RANDOM subset of the MC: weight * (events in full MC / events kept), per class.
+def load_prepared_summary(path):
+    """Read summary.csv of the preparation script; the index is the dataset NUMBER (121122, ...)."""
+    import pandas as pd
+    df = pd.read_csv(path)
+    df["dataset_no"] = df["dataset"].str.split("/").str[-1].astype(int)
+    return df.set_index("dataset_no")
 
-    n_full: {class name: number of events of that class in the FULL MC, before any cuts}.
-    Count the kept events before cuts too. Do not use this for physics cuts.
-    """
-    weights = np.asarray(weights, dtype=float).copy()
-    classes = np.asarray(classes)
-    for k, n_total in n_full.items():
-        sel = classes == k
+def rescale_weights_by_dataset(class_weight, dataset, summary):
+    """Rescale the weights of a random subset, per dataset folder.
+    new weight = class_weight * (n_events_total - n_dropped_no_pulses) / (events of this dataset in the input).
+    Call it BEFORE any physics cut."""
+    import pandas as pd
+    class_weight = np.asarray(class_weight, dtype=float)
+    dataset = np.asarray(dataset).astype(int)
+    new_w = class_weight.copy()
+    rows = []
+    for d in np.unique(dataset):
+        sel = dataset == d
         n_kept = int(sel.sum())
-        if n_kept > 0:
-            weights[sel] *= n_total / n_kept
-    return weights
+        r = summary.loc[d]
+        n_full = float(r["n_events_total"] - r["n_dropped_no_pulses"])
+        new_w[sel] = class_weight[sel] * n_full / n_kept
+        rows.append(dict(dataset=r["dataset"], n_kept=n_kept, n_full_with_pulses=int(n_full),
+                         factor=n_full / n_kept, sum_new_w=new_w[sel].sum(),
+                         sum_class_weight_all=r["sum_class_weight_all"]))
+    table = pd.DataFrame(rows).set_index("dataset")
+    table["new_w / full"] = table["sum_new_w"] / table["sum_class_weight_all"]
+    return new_w, table
 
 
 def weighted_hist(values, weights, bins):
