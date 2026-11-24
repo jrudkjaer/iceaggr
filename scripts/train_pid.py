@@ -18,6 +18,7 @@ import yaml
 from torch.utils.data import DataLoader
 
 from iceaggr.data import GeometryLoader, make_collate_flat
+from iceaggr.data.prepared_pid_dataset import PartSampler
 from iceaggr.models import FlatTransformerV2
 from iceaggr.models.pid_metrics import CLASS_NAMES, confusion_matrix, metrics_from_confusion, plot_confusion_matrix
 from iceaggr.utils import get_logger
@@ -88,10 +89,16 @@ def create_dataloader(dataset, geometry, config: dict, shuffle: bool) -> DataLoa
         max_doms=config['model']['max_doms'],
     )
     num_workers = int(config['data'].get('num_workers', 0))
+
+    sampler = None
+    if shuffle and hasattr(dataset, "batch_id"):      # only the prepared dataset has batch_id; the fake one does not
+            sampler = PartSampler(dataset, shuffle=True, seed=int(config['training'].get('seed', 42)))
+
     return DataLoader(
         dataset,
         batch_size=config['training']['batch_size'],
-        shuffle=shuffle,
+        shuffle=shuffle and sampler is None,
+        sampler=sampler,
         num_workers=num_workers,
         collate_fn=collate_fn,
         pin_memory=torch.cuda.is_available(),
@@ -200,6 +207,13 @@ def build_datasets(config: dict):
         train_ds = FakePIDDataset(n_events=int(config['data'].get('train_events', 2048)), seed=seed)
         val_ds = FakePIDDataset(n_events=int(config['data'].get('val_events', 512)), seed=seed + 1)
         return train_ds, val_ds
+    if source == 'prepared':
+        from iceaggr.data.prepared_pid_dataset import PreparedPIDDataset
+        prepared_dir = config['data']['prepared_dir']
+        n_cls = int(config['model'].get('num_classes', 3))
+        train_ds = PreparedPIDDataset(prepared_dir, 'train', num_classes=n_cls)
+        val_ds = PreparedPIDDataset(prepared_dir, 'val', num_classes=n_cls)
+        return train_ds, val_ds
     raise NotImplementedError(
         f"data.source = '{source}': the real dataset is not written yet. Use 'fake' for now."
     )
@@ -247,6 +261,8 @@ def main():
     # --- epoch loop ---
     best_loss = float('inf')
     for epoch in range(1, epochs + 1):
+        if hasattr(train_loader.sampler, "set_epoch"):
+            train_loader.sampler.set_epoch(epoch)
         train_loss, train_acc = train_epoch(model, train_loader, optimizer, scheduler, device, epoch, config)
         val = validate(model, val_loader, device, config)
         lr = scheduler.get_last_lr()[0]
